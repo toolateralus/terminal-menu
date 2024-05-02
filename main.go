@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -30,9 +31,20 @@ func NewState(previous *State, path string) State {
 			log.Fatal(err)
 		}
 		items := []string{}
+		
 		for _, file := range files {
-			items = append(items, file.Name())
-		}
+			// try hide the hidden files.
+			if !strings.HasPrefix(file.Name(), ".") {
+					fileInfo, err := os.Stat(filepath.Join(path, file.Name()))
+					if err != nil {
+							log.Fatal(err)
+					}
+					// Check if the file has read permission
+					if fileInfo.Mode().Perm()&0400 != 0 {
+							items = append(items, file.Name())
+					}
+			}
+	}
 		
 		return State{
 			items:    items,
@@ -81,14 +93,36 @@ func termbox_print(x, y int, fg, bg termbox.Attribute, msg string) {
 }
 
 func (renderer *Renderer) Draw() {
-	for i, item := range renderer.state.items {
+	_, h := termbox.Size() 
+	page := renderer.state.selected / h
+	start := page * h
+	end := min(len(renderer.state.items), start+h)
+	
+	for i := start; i < end; i++ {
+		item := renderer.state.items[i]
 		if i == renderer.state.selected {
-			termbox_print(0, i, termbox.ColorBlack, termbox.ColorWhite, "> "+item)
-		} else {
-			termbox_print(0, i, termbox.ColorWhite, termbox.ColorDefault, fmt.Sprintf("%d %s", i+1, item))
+			termbox_print(0, i-start, termbox.ColorBlack, termbox.ColorWhite, "> "+item)
+			} else {
+				termbox_print(0, i-start, termbox.ColorWhite, termbox.ColorDefault, fmt.Sprintf("%d %s", i+1, item))
+			}
 		}
-	}
+		
+	termbox_print(0, end + 1, termbox.ColorWhite, termbox.ColorGreen, "[esc] to go up, [enter] to go in, [up arrow] to move up, [down arrow] to move down\n")
 	termbox.Flush()
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func (renderer *Renderer) Clear() {
@@ -179,13 +213,12 @@ func main() {
 	}
 	defer termbox.Close()
 	
-	state := NewState(nil, "/")
-	
-	inputDone := make(chan bool)
+	homeDir := os.Getenv("HOME")
+	state := NewState(nil, homeDir)
 	
 	handler := &InputHandler{
 		state:     &state,
-		inputDone: inputDone,
+		inputDone: make(chan bool),
 	}
 	
 	renderer := &Renderer{
