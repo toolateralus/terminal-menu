@@ -156,14 +156,18 @@ func (handler *InputHandler) PollInput() {
 }
 
 func Run(state *State, renderer *Renderer, handler *InputHandler) {
+	go handler.PollInput()
+	renderer.Clear()
+	renderer.Draw()
 	for state.running {
 		select {
 		case <-handler.inputDone:
 			go handler.PollInput()
+			renderer.Clear()
+			renderer.Draw()
 		default:
 		}
-		renderer.Clear()
-		renderer.Draw()
+		
 		time.Sleep(time.Millisecond * 16)
 	}
 }
@@ -174,21 +178,20 @@ func main() {
 		panic(err)
 	}
 	defer termbox.Close()
-
+	
 	state := NewState(nil, "/")
-
+	
 	inputDone := make(chan bool)
-
+	
 	handler := &InputHandler{
 		state:     &state,
 		inputDone: inputDone,
 	}
-
+	
 	renderer := &Renderer{
 		state: &state,
 	}
-
-	go handler.PollInput()
-
+	
+	
 	Run(&state, renderer, handler)
 }
