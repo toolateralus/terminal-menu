@@ -17,6 +17,7 @@ type State struct {
 	running  bool
 	isDir    bool
 	path     string
+	showHelp bool
 	previous *State
 }
 
@@ -45,7 +46,7 @@ func NewState(previous *State, path string) State {
 				}
 			}
 		}
-
+		
 		return State{
 			items:    items,
 			selected: 0,
@@ -53,15 +54,16 @@ func NewState(previous *State, path string) State {
 			path:     path,
 			previous: previous,
 			isDir:    true,
+			showHelp: true,
 		}
 	} else {
 		contents, err := os.ReadFile(path)
 		if err != nil {
 			log.Fatal(err)
 		}
-
+		
 		lines := strings.Split(string(contents), "\n")
-
+		
 		return State{
 			items:    lines,
 			selected: 0,
@@ -69,6 +71,7 @@ func NewState(previous *State, path string) State {
 			path:     path,
 			previous: previous,
 			isDir:    false,
+			showHelp: false,
 		}
 
 	}
@@ -95,8 +98,8 @@ func (renderer *Renderer) Draw() {
 	_, h := termbox.Size()
 	page := renderer.state.selected / h
 	start := page * h
-	end := min(len(renderer.state.items), start+h)
-
+	end := min(len(renderer.state.items), start+h-3)
+	
 	for i := start; i < end; i++ {
 		item := renderer.state.items[i]
 		if i == renderer.state.selected {
@@ -105,9 +108,20 @@ func (renderer *Renderer) Draw() {
 			termbox_print(0, i-start, termbox.ColorWhite, termbox.ColorDefault, fmt.Sprintf("%d %s", i+1, item))
 		}
 	}
-
-	termbox_print(0, end+1, termbox.ColorWhite, termbox.ColorBlack, "[esc] to go up, [enter] to go in, [up arrow] to move up, [down arrow] to move down\n")
-	termbox_print(0, end+2, termbox.ColorLightYellow, termbox.ColorBlack, fmt.Sprintf("%s\n", renderer.state.path))
+	
+	extra := 1
+	
+	if renderer.state.showHelp {
+		termbox_print(0, end + extra, termbox.ColorWhite, termbox.ColorBlack, "[esc] to go up, [enter] to go in, [up/down] to navigate\n")
+		extra++
+		termbox_print(0, end + extra, termbox.ColorWhite, termbox.ColorBlack, "[ctrl + S/W] to jump to bottom/top, [PageDown/PageUp] to jump pages\n")
+		extra++
+		} else {
+			termbox_print(0, end + extra, termbox.ColorWhite, termbox.ColorBlack, "[Home] to toggle help")
+			extra++
+		}
+		termbox_print(0, end + extra, termbox.ColorLightYellow, termbox.ColorBlack, fmt.Sprintf("%s\n", renderer.state.path))
+	
 	termbox.Flush()
 }
 
@@ -150,6 +164,10 @@ func (handler *InputHandler) OnArrowDown() {
 	}
 }
 
+func (handler *InputHandler) OnHome() {
+	handler.state.showHelp = !handler.state.showHelp
+}
+
 func (handler *InputHandler) OnPageUp() {
 	_, h := termbox.Size()
 	page := handler.state.selected / h
@@ -166,11 +184,21 @@ func (handler *InputHandler) OnPageDown() {
 	handler.state.selected = end
 }
 
+func (handler *InputHandler) OnCtrlS() {
+	handler.state.selected = len(handler.state.items) -1
+}
+
+func (handler *InputHandler) OnCtrlW() {
+	handler.state.selected = 0
+}
+
+
+
 func (handler *InputHandler) PollInput() {
 	defer func() {
 		handler.inputDone <- true
 	}()
-
+	
 	switch ev := termbox.PollEvent(); ev.Type {
 	case termbox.EventKey:
 		switch ev.Key {
@@ -188,7 +216,14 @@ func (handler *InputHandler) PollInput() {
 			handler.OnPageDown()
 		case termbox.KeyPgup:
 			handler.OnPageUp()
+		case termbox.KeyCtrlS:
+			handler.OnCtrlS()
+		case termbox.KeyCtrlW:
+			handler.OnCtrlW()
+		case termbox.KeyHome:
+			handler.OnHome()
 		}
+		
 	default:
 		break
 	}
