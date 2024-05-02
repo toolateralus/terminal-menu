@@ -98,7 +98,7 @@ func (renderer *Renderer) Draw() {
 	_, h := termbox.Size()
 	page := renderer.state.selected / h
 	start := page * h
-	end := min(len(renderer.state.items), start+h-3)
+	end := min(len(renderer.state.items), start+h)
 	
 	for i := start; i < end; i++ {
 		item := renderer.state.items[i]
@@ -124,7 +124,6 @@ func (renderer *Renderer) Draw() {
 	
 	termbox.Flush()
 }
-
 
 func (renderer *Renderer) Clear() {
 	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
@@ -173,9 +172,9 @@ func (handler *InputHandler) OnPageUp() {
 	page := handler.state.selected / h
 	start := page * h
 	end := max(0, start-h)
-	handler.state.selected = end
-	
+	handler.state.selected = end	
 }
+
 func (handler *InputHandler) OnPageDown() {
 	_, h := termbox.Size()
 	page := handler.state.selected / h
@@ -191,8 +190,6 @@ func (handler *InputHandler) OnCtrlS() {
 func (handler *InputHandler) OnCtrlW() {
 	handler.state.selected = 0
 }
-
-
 
 func (handler *InputHandler) PollInput() {
 	defer func() {
